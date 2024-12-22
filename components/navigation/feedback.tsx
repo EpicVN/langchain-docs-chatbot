@@ -4,6 +4,8 @@ import { LuArrowUpRight } from "react-icons/lu";
 import { GitHubLink } from "@/settings/navigation";
 import { cn } from "@/lib/utils";
 
+import { AIChatBoxButton } from "../AIChatBoxButton";
+
 type SideBarEdit = {
   title: string;
   slug: string;
@@ -38,6 +40,8 @@ export default function RightSideBar({ slug, title }: SideBarEdit) {
           <LuArrowUpRight className="mr-1 w-4 h-4 inline-block" /> Edit page
         </Link>
       </div>
+
+      <AIChatBoxButton />
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { GeistMono } from "geist/font/mono";
 import { Footer } from "@/components/navigation/footer";
 import { Settings } from "@/lib/meta";
 import "./globals.css";
+import { AIChatBoxButton } from "@/components/AIChatBoxButton";
 
 const baseUrl = Settings.metadataBase;
 
@@ -65,6 +66,7 @@ export default function RootLayout({
           <main className="px-5 sm:px-8 h-auto">
             {children}
           </main>
+          <AIChatBoxButton/>
           <Footer />
         </ThemeProvider>
       </body>

@@ -1,0 +1,29 @@
+---
+title: Classify Text into Labels
+keywords: ["navigation", "sidebar", "menus", "mdx", "nextjs", "documents"]
+---
+
+Tagging means labeling a document with classes such as:
+
+- sentiment
+- language
+- style (formal, informal etc.)
+- covered topics
+- political tendency
+
+![Banner](/images/classification.png "Documents")
+
+## Overview
+
+Tagging has a few components:
+
+    - **function**: Like **extraction**, tagging uses functions to specify how the model should tag a document
+    - **schema**: defines how we want to tag the document
+
+## Quickstart
+
+Let’s see a very straightforward example of how we can use tool calling for tagging in LangChain. We’ll use the **.withStructuredOutput()**, supported on **selected chat models**.
+
+### Pick your chat model:
+
+Install dependencies

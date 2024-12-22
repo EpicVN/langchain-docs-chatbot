@@ -1,0 +1,26 @@
+---
+title: Build a semantic search engine
+description: This tutorial will familiarize you with LangChain’s document loader, embedding, and vector store abstractions. These abstractions are designed to support retrieval of data– from (vector) databases and other sources– for integration with LLM workflows. They are important for applications that fetch data to be reasoned over as part of model inference, as in the case of retrieval-augmented generation, or RAG (see our RAG tutorial here).
+keywords: ["navigation", "sidebar", "menus", "mdx", "nextjs", "documents"]
+---
+
+Here we will build a search engine over a PDF document. This will allow us to retrieve passages in the PDF that are similar to an input query.
+
+## Concepts
+
+This guide focuses on retrieval of text data. We will cover the following concepts:
+
+    - Documents and document loaders;
+    - Text splitters;
+    - Embeddings;
+    - Vector stores and retrievers.
+
+## Setup
+
+### Jupyter Notebook
+
+This and other tutorials are perhaps most conveniently run in a Jupyter notebook. See here for instructions on how to install.
+
+### Installation
+
+This guide requires **@langchain/community** and **pdf-parse**:

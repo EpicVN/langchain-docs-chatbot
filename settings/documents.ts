@@ -21,11 +21,33 @@ export const Documents: Paths[] = [
     ],
   },
   {
+    title: "Tutorials",
+    href: "/tutorials",
+    items: [
+      {
+        title: "Build a simple LLM application with chat models and prompt templates",
+        href: "/llm_chain",
+      },
+      {
+        title: "Build a semantic search engine",
+        href: "/retrievers",
+      },
+      {
+        title: "Tagging",
+        href: "/classification",
+      },
+      {
+        title: "Build an Extraction Chain",
+        href: "/extraction",
+      },
+    ],
+  },
+  {
     spacer: true,
   },
   {
-    title: "Navigation",
-    href: "/navigation",
+    title: "How-to guides",
+    href: "/how_to",
     heading: "Documents",
   },
   {

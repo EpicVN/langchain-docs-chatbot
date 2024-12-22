@@ -28,6 +28,7 @@ export function Navbar() {
 
         <div className="flex items-center gap-2">
           <Search />
+          
           <div className="flex sm:ml-0 gap-2">
             {GitHubLink.href && (
               <Link

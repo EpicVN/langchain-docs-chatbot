@@ -3,6 +3,7 @@
 import Link from "next/link";
 import clsx from "clsx";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { AIChatBoxButton } from "../AIChatBoxButton";
 
 type TocProps = {
   tocs: { href: string; level: number; text: string }[];
@@ -44,6 +45,8 @@ export default function Toc({ tocs }: TocProps) {
           ))}
         </div>
       </ScrollArea>
+
+      
     </div>
   );
 }
