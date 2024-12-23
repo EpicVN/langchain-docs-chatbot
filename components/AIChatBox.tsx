@@ -46,8 +46,8 @@ export const AIChatBox = ({ open, onClose }: AIChatbotProps) => {
         position: "fixed",
       }}
       className={cn(
-        "z-100 xl:right-30 bottom-0 right-0 w-full max-w-[300px] sm:max-w-[400px] p-1 lg:max-w-[500px]",
-        open ? "fixed" : "hidden",
+        "z-100 xl:right-30 bottom-0 right-0 w-full max-w-[300px] p-1 transition-transform duration-500 sm:max-w-[400px] lg:max-w-[500px]",
+        open ? "translate-y-0" : "translate-y-full",
       )}
     >
       <div className="flex h-[600px] flex-col rounded border bg-background shadow-2xl">
