@@ -1,34 +1,50 @@
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { ChatOpenAI } from "@langchain/openai";
-import { streamText } from "ai";
-import { createOpenAI } from "@ai-sdk/openai";
+import { streamText, LangChainAdapter, Message } from "ai";
+import { createOpenAI, openai } from "@ai-sdk/openai";
 import { ChatCompletionMessageParam } from "openai/resources";
 import { NextResponse } from "next/server";
+import { AIMessage, HumanMessage } from "@langchain/core/messages";
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    const {
+      messages,
+    }: {
+      messages: Message[];
+    } = await req.json();
 
-    const messages = body.messages;
+    const currentMessageContent = messages[messages.length - 1].content;
 
-    const currentMessages = messages[messages.length - 1].content;
-
-    const openai = createOpenAI({
-      compatibility: "strict",
-    });
-
-    const systemMessage: ChatCompletionMessageParam = {
-      role: "system",
-      content:
+    const prompt = ChatPromptTemplate.fromMessages([
+      [
+        "system",
         "You are a sarcasm bot. Your answer all user questions in a sarcastic way",
-    };
+      ],
+      ["user", "{input}"],
+    ]);
 
-    const response = streamText({
-      model: openai("gpt-4o-mini"),
-      messages: [systemMessage, ...messages],
+    const model = new ChatOpenAI({
+      modelName: "gpt-4o-mini",
+      streaming: true,
     });
 
-    return (await response).toDataStreamResponse();
+    const chain = prompt.pipe(model);
+
+    const formattedMessages = messages.map((message) =>
+      message.role === "user"
+        ? new HumanMessage(message.content)
+        : new AIMessage(message.content),
+    );
+
+    console.log("formattedMessages: ", formattedMessages);
+
+    const stream = await chain.stream({
+      history: formattedMessages,
+      input: currentMessageContent,
+    });
+
+    return LangChainAdapter.toDataStreamResponse(stream);
   } catch (error) {
     return NextResponse.json(
       { error: "Failed to process request." },
