@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 import { Message } from "ai";
 import { useChat } from "ai/react";
-import { Bot, Trash, X } from "lucide-react";
+import { Bot, SendHorizonal, Trash, X } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -91,7 +91,7 @@ export const AIChatBox = ({ open, onClose }: AIChatbotProps) => {
             </div>
           )}
         </div>
-        <form onSubmit={handleSubmit} className="m-3 flex gap-1">
+        <form onSubmit={handleSubmit} className="m-3 flex gap-3">
           <Button
             title="Clear chat"
             variant="outline"
@@ -109,7 +109,9 @@ export const AIChatBox = ({ open, onClose }: AIChatbotProps) => {
             placeholder="Say something..."
             ref={inputRef}
           />
-          <Button type="submit">Send</Button>
+          <Button type="submit" disabled={input.length === 0}>
+            <SendHorizonal size={24}/>
+          </Button>
         </form>
       </div>
     </div>
