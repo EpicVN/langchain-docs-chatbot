@@ -14,6 +14,7 @@
   "dependencies": {
     "@ai-sdk/openai": "^1.0.11",
     "@datastax/astra-db-ts": "^1.5.0",
+    "@langchain/community": "^0.3.20",
     "@langchain/core": "^0.3.26",
     "@next/third-parties": "^14.2.11",
     "@radix-ui/react-accordion": "^1.2.0",
