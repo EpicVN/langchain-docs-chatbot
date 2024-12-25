@@ -19,3 +19,429 @@ Let’s dive in!
 ### Installation
 
 To install LangChain run:
+
+<Tabs defaultValue="npm" className="pt-5 pb-1">
+  <TabsList className="">
+    <TabsTrigger value="npm">npm</TabsTrigger>
+    <TabsTrigger value="yarn">yarn</TabsTrigger>
+    <TabsTrigger value="pnpm">pnpm</TabsTrigger>
+  </TabsList>
+
+{" "}
+
+<TabsContent value="npm">
+  ```bash npm i langchain @langchain/core ```
+</TabsContent>
+<TabsContent value="yarn">
+  ```bash yarn add langchain @langchain/core ```
+</TabsContent>
+
+  <TabsContent value="pnpm">
+    ```bash
+    pnpm add langchain @langchain/core
+    ```
+  </TabsContent>
+</Tabs>
+
+For more details, see our [Installation guide](/docs/introduction/installation).
+
+### LangSmith
+
+Many of the applications you build with LangChain will contain multiple steps with multiple invocations of LLM calls. As these applications get more and more complex, it becomes crucial to be able to inspect what exactly is going on inside your chain or agent. The best way to do this is with LangSmith.
+
+After you sign up at the link above, make sure to set your environment variables to start logging traces:
+
+```bash
+export LANGCHAIN_TRACING_V2="true"
+export LANGCHAIN_API_KEY="..."
+
+# Reduce tracing latency if you are not in a serverless environment
+# export LANGCHAIN_CALLBACKS_BACKGROUND=true
+```
+
+## Using Language Models
+
+First up, let’s learn how to use a language model by itself. LangChain supports many different language models that you can use interchangeably. For details on getting started with a specific model, refer to supported integrations.
+
+### Pick your chat model:
+
+<Tabs defaultValue="openai" className="pt-5 pb-1">
+  <TabsList className="">
+    <TabsTrigger value="openai">OpenAI</TabsTrigger>
+    <TabsTrigger value="anthropic">Anthropic</TabsTrigger>
+    <TabsTrigger value="fireworksai">FireworksAI</TabsTrigger>
+    <TabsTrigger value="mistralai">MistralAI</TabsTrigger>
+    <TabsTrigger value="groq">Groq</TabsTrigger>
+    <TabsTrigger value="vertexai">VertexAI</TabsTrigger>
+  </TabsList>
+
+  <TabsContent value="openai">
+    ```bash
+    npm i @langchain/openai
+    ```
+
+    Add environment variables
+
+    ```bash
+    OPENAI_API_KEY=your-api-key
+    ```
+
+    Instantiate the model
+
+    ```jsx {0} showLineNumbers
+    import { ChatOpenAI } from "@langchain/openai";
+
+    const model = new ChatOpenAI({ model: "gpt-4" });
+    ````
+
+  </TabsContent>
+  
+  <TabsContent value="anthropic">
+    ```bash
+    npm i @langchain/anthropic
+    ```
+
+    Add environment variables
+
+    ```bash
+    ANTHROPIC_API_KEY=your-api-key
+    ```
+
+    Instantiate the model
+
+    ```jsx {0} showLineNumbers
+    import { ChatAnthropic } from "@langchain/anthropic";
+
+    const model = new ChatAnthropic({
+    model: "claude-3-5-sonnet-20240620",
+    temperature: 0
+    });
+    ````
+
+  </TabsContent>
+
+  <TabsContent value="fireworksai">
+    ```bash
+    npm i @langchain/community
+    ```
+
+    Add environment variables
+
+    ```bash
+    FIREWORKS_API_KEY=your-api-key
+    ```
+
+    Instantiate the model
+
+    ```jsx {0} showLineNumbers
+    import { ChatFireworks } from "@langchain/community/chat_models/fireworks";
+
+    const model = new ChatFireworks({
+    model: "accounts/fireworks/models/llama-v3p1-70b-instruct",
+    temperature: 0
+    });
+    ````
+
+  </TabsContent>
+
+  <TabsContent value="mistralai">
+    ```bash
+    npm i @langchain/mistralai
+    ```
+
+    Add environment variables
+
+    ```bash
+    MISTRAL_API_KEY=your-api-key
+    ```
+
+    Instantiate the model
+
+    ```jsx {0} showLineNumbers
+    import { ChatMistralAI } from "@langchain/mistralai";
+
+    const model = new ChatMistralAI({
+    model: "mistral-large-latest",
+    temperature: 0
+    });
+    ````
+
+  </TabsContent>
+
+  <TabsContent value="groq">
+    ```bash
+    npm i @langchain/groq
+    ```
+
+    Add environment variables
+
+    ```bash
+    GROQ_API_KEY=your-api-key
+    ```
+
+    Instantiate the model
+
+    ```jsx {0} showLineNumbers
+    import { ChatGroq } from "@langchain/groq";
+
+    const model = new ChatGroq({
+    model: "mixtral-8x7b-32768",
+    temperature: 0
+    });
+    ````
+
+  </TabsContent>
+
+  <TabsContent value="vertexai">
+    ```bash
+    npm i @langchain/google-vertexai
+    ```
+
+    Add environment variables
+
+    ```bash
+    GOOGLE_APPLICATION_CREDENTIALS=credentials.json
+    ```
+
+    Instantiate the model
+
+    ```jsx {0} showLineNumbers
+    import { ChatVertexAI } from "@langchain/google-vertexai";
+
+    const model = new ChatVertexAI({
+    model: "gemini-1.5-flash",
+    temperature: 0
+    });
+    ````
+
+  </TabsContent>
+</Tabs>
+
+Let’s first use the model directly. ChatModels are instances of LangChain Runnables, which means they expose a standard interface for interacting with them. To simply call the model, we can pass in a list of messages to the **.invoke** method.
+
+```jsx {0} showLineNumbers
+import { HumanMessage, SystemMessage } from "@langchain/core/messages";
+
+const messages = [
+  new SystemMessage("Translate the following from English into Italian"),
+  new HumanMessage("hi!"),
+];
+
+await model.invoke(messages);
+```
+
+```bash
+AIMessage {
+  "id": "chatcmpl-AekSfJkg3QIOsk42BH6Qom4Gt159j",
+  "content": "Ciao!",
+  "additional_kwargs": {},
+  "response_metadata": {
+    "tokenUsage": {
+      "promptTokens": 20,
+      "completionTokens": 3,
+      "totalTokens": 23
+    },
+    "finish_reason": "stop",
+    "usage": {
+      "prompt_tokens": 20,
+      "completion_tokens": 3,
+      "total_tokens": 23,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "audio_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "audio_tokens": 0,
+        "accepted_prediction_tokens": 0,
+        "rejected_prediction_tokens": 0
+      }
+    },
+    "system_fingerprint": "fp_6fc10e10eb"
+  },
+  "tool_calls": [],
+  "invalid_tool_calls": [],
+  "usage_metadata": {
+    "output_tokens": 3,
+    "input_tokens": 20,
+    "total_tokens": 23,
+    "input_token_details": {
+      "audio": 0,
+      "cache_read": 0
+    },
+    "output_token_details": {
+      "audio": 0,
+      "reasoning": 0
+    }
+  }
+}
+```
+
+<Note title="TIP" type="success">
+  If we've enabled LangSmith, we can see that this run is logged to LangSmith,
+  and can see the LangSmith trace. The LangSmith trace reports token usage
+  information, latency, standard model parameters (such as temperature), and
+  other information.
+</Note>
+
+Note that ChatModels receive message objects as input and generate message objects as output. In addition to text content, message objects convey conversational roles and hold important data, such as tool calls and token usage counts.
+
+LangChain also supports chat model inputs via strings or OpenAI format. The following are equivalent:
+
+```jsx {0} showLineNumbers
+await model.invoke("Hello");
+
+await model.invoke([{ role: "user", content: "Hello" }]);
+
+await model.invoke([new HumanMessage("hi!")]);
+```
+
+### Streaming
+
+Because chat models are Runnables, they expose a standard interface that includes async and streaming modes of invocation. This allows us to stream individual tokens from a chat model:
+
+```jsx {0} showLineNumbers
+const stream = await model.stream(messages);
+
+const chunks = [];
+for await (const chunk of stream) {
+  chunks.push(chunk);
+  console.log(`${chunk.content}|`);
+}
+```
+
+```bash
+|
+C|
+iao|
+!|
+|
+|
+```
+
+## Prompt Templates
+
+Right now we are passing a list of messages directly into the language model. Where does this list of messages come from? Usually, it is constructed from a combination of user input and application logic. This application logic usually takes the raw user input and transforms it into a list of messages ready to pass to the language model. Common transformations include adding a system message or formatting a template with the user input.
+
+Prompt templates are a concept in LangChain designed to assist with this transformation. They take in raw user input and return data (a prompt) that is ready to pass into a language model.
+
+Let’s create a prompt template here. It will take in two user variables:
+
+    - **language**: The language to translate text into
+    - **text**: The text to translate
+
+```jsx {0} showLineNumbers
+import { ChatPromptTemplate } from "@langchain/core/prompts";
+```
+
+First, let’s create a string that we will format to be the system message:
+
+```jsx {0} showLineNumbers
+const systemTemplate = "Translate the following from English into {language}";
+```
+
+Next, we can create the PromptTemplate. This will be a combination of the systemTemplate as well as a simpler template for where to put the text
+
+```jsx {0} showLineNumbers
+const promptTemplate = ChatPromptTemplate.fromMessages([
+  ["system", systemTemplate],
+  ["user", "{text}"],
+]);
+```
+
+Note that **ChatPromptTemplate** supports multiple message roles in a single template. We format the language parameter into the system message, and the user text into a user message.
+
+The input to this prompt template is a dictionary. We can play around with this prompt template by itself to see what it does by itself
+
+```jsx {0} showLineNumbers
+const promptValue = await promptTemplate.invoke({
+  language: "italian",
+  text: "hi!",
+});
+
+promptValue;
+```
+
+```bash
+ChatPromptValue {
+  lc_serializable: true,
+  lc_kwargs: {
+    messages: [
+      SystemMessage {
+        "content": "Translate the following from English into italian",
+        "additional_kwargs": {},
+        "response_metadata": {}
+      },
+      HumanMessage {
+        "content": "hi!",
+        "additional_kwargs": {},
+        "response_metadata": {}
+      }
+    ]
+  },
+  lc_namespace: [ 'langchain_core', 'prompt_values' ],
+  messages: [
+    SystemMessage {
+      "content": "Translate the following from English into italian",
+      "additional_kwargs": {},
+      "response_metadata": {}
+    },
+    HumanMessage {
+      "content": "hi!",
+      "additional_kwargs": {},
+      "response_metadata": {}
+    }
+  ]
+}
+```
+
+We can see that it returns a ChatPromptValue that consists of two messages. If we want to access the messages directly we do:
+
+```jsx {0} showLineNumbers
+promptValue.toChatMessages();
+```
+
+```bash
+[
+  SystemMessage {
+    "content": "Translate the following from English into italian",
+    "additional_kwargs": {},
+    "response_metadata": {}
+  },
+  HumanMessage {
+    "content": "hi!",
+    "additional_kwargs": {},
+    "response_metadata": {}
+  }
+]
+```
+
+Finally, we can invoke the chat model on the formatted prompt:
+
+```jsx {0} showLineNumbers
+const response = await model.invoke(promptValue);
+console.log(`${response.content}`);
+```
+
+```bash
+Ciao!
+```
+
+If we take a look at the LangSmith trace, we can see all three components show up in the LangSmith trace.
+
+## Conclusion
+
+That’s it! In this tutorial you’ve learned how to create your first simple LLM application. You’ve learned how to work with language models, how to create a prompt template, and how to get great observability into applications you create with LangSmith.
+
+This just scratches the surface of what you will want to learn to become a proficient AI Engineer. Luckily - we’ve got a lot of other resources!
+
+For further reading on the core concepts of LangChain, we’ve got detailed Conceptual Guides.
+
+If you have more specific questions on these concepts, check out the following sections of the how-to guides:
+
+    - [Chat models](/docs/how_to)
+    - [Prompt templates](/docs/how_to)
+
+And the LangSmith docs:
+
+    - [LangSmith](https://docs.smith.langchain.com/)

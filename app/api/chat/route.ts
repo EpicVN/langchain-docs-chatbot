@@ -10,7 +10,9 @@ import { LangChainAdapter, Message } from "ai";
 import { createStuffDocumentsChain } from "langchain/chains/combine_documents";
 import { createRetrievalChain } from "langchain/chains/retrieval";
 import { createHistoryAwareRetriever } from "langchain/chains/history_aware_retriever";
+import { UpstashRedisCache } from "@langchain/community/caches/upstash_redis";
 import { NextResponse } from "next/server";
+import { Redis } from "@upstash/redis";
 
 export async function POST(req: Request) {
   try {
@@ -34,16 +36,21 @@ export async function POST(req: Request) {
 
     console.log("Chat History: ", chatHistory);
 
+    const cache = new UpstashRedisCache({
+      client: Redis.fromEnv(),
+    });
+
     const model = new ChatOpenAI({
       modelName: "gpt-4o-mini",
       streaming: true,
       verbose: true,
-      cache: true
+      cache: cache,
     });
 
     const rephrasingModel = new ChatOpenAI({
       modelName: "gpt-4o-mini",
       verbose: true,
+      cache: cache,
     });
 
     const retriever = (await getVectorStore()).asRetriever({

@@ -1,0 +1,479 @@
+---
+title: Build a Retrieval Augmented Generation (RAG) App Part 1
+description: One of the most powerful applications enabled by LLMs is sophisticated question-answering (Q&A) chatbots. These are applications that can answer questions about specific source information. These applications use a technique known as Retrieval Augmented Generation, or RAG.
+---
+
+This is a multi-part tutorial:
+
+- Part 1 (this guide) introduces RAG and walks through a minimal implementation.
+- [Part 2](/docs/tutorials/qa_chat_history) extends the implementation to accommodate conversation-style interactions and multi-step retrieval processes.
+This tutorial will show how to build a simple Q&A application over a text data source. Along the way we’ll go over a typical Q&A architecture and highlight additional resources for more advanced Q&A techniques. We’ll also see how LangSmith can help us trace and understand our application. LangSmith will become increasingly helpful as our application grows in complexity.
+
+If you’re already familiar with basic retrieval, you might also be interested in this high-level overview of different retrieval techinques.
+
+Note: Here we focus on Q&A for unstructured data. If you are interested for RAG over structured data, check out our tutorial on doing [question/answering over SQL data](/docs/tutorials/sql_qa).
+
+## Overview
+A typical RAG application has two main components:
+
+**Indexing**: a pipeline for ingesting data from a source and indexing it. This usually happens offline.
+
+**Retrieval and generation**: the actual RAG chain, which takes the user query at run time and retrieves the relevant data from the index, then passes that to the model.
+
+Note: the indexing portion of this tutorial will largely follow the [semantic search tutorial](/docs/tutorials/retrievers).
+
+The most common full sequence from raw data to answer looks like:
+
+### Indexing
+
+1. Load: First we need to load our data. This is done with Document Loaders.
+2. Split: Text splitters break large Documents into smaller chunks. This is useful both for indexing data and passing it into a model, as large chunks are harder to search over and won’t fit in a model’s finite context window.
+3. Store: We need somewhere to store and index our splits, so that they can be searched over later. This is often done using a VectorStore and Embeddings model.
+
+![RAG](/images/rag.png "RAG")
+
+### Retrieval and generation
+
+1. Retrieve: Given a user input, relevant splits are retrieved from storage using a Retriever.
+2. Generate: A ChatModel / LLM produces an answer using a prompt that includes both the question with the retrieved data
+
+![RAG_1](/images/rag_1.png "RAG_1")
+
+Once we’ve indexed our data, we will use LangGraph as our orchestration framework to implement the retrieval and generation steps.
+
+## Setup
+
+### Jupyter Notebook
+
+This and other tutorials are perhaps most conveniently run in a Jupyter notebooks. Going through guides in an interactive environment is a great way to better understand them. See here for instructions on how to install.
+
+### Installation
+
+This guide requires **@langchain/community** and **pdf-parse**:
+
+<Tabs defaultValue="npm" className="pt-5 pb-1">
+    <TabsList className="">
+    <TabsTrigger value="npm">npm</TabsTrigger>
+    <TabsTrigger value="yarn">yarn</TabsTrigger>
+    <TabsTrigger value="pnpm">pnpm</TabsTrigger>
+    </TabsList>
+
+    <TabsContent value="npm">
+    ```bash
+    npm i langchain @langchain/core @langchain/langgraph
+    ```
+    </TabsContent>
+
+    <TabsContent value="yarn">
+    ```bash
+    yarn add langchain @langchain/core @langchain/langgraph
+    ```
+    </TabsContent>
+
+    <TabsContent value="pnpm">
+    ```bash
+    pnpm add langchain @langchain/core @langchain/langgraph
+    ```
+    </TabsContent>
+
+</Tabs>
+
+For more details, see our [Installation guide](/docs/introduction/installation).
+
+### LangSmith
+
+Many of the applications you build with LangChain will contain multiple steps with multiple invocations of LLM calls. As these applications get more and more complex, it becomes crucial to be able to inspect what exactly is going on inside your chain or agent. The best way to do this is with LangSmith.
+
+After you sign up at the link above, make sure to set your environment variables to start logging traces:
+
+```bash
+export LANGCHAIN_TRACING_V2="true"
+export LANGCHAIN_API_KEY="..."
+
+# Reduce tracing latency if you are not in a serverless environment
+# export LANGCHAIN_CALLBACKS_BACKGROUND=true
+```
+
+## Components
+
+We will need to select three components from LangChain’s suite of integrations.
+
+A chat model:
+
+### Pick your chat model:
+
+Install dependencies:
+
+<Note title="TIP" type="success">
+  See [this section for general instructions on installing integration
+  packages](/docs/introduction/installation#installation).
+</Note>
+
+<Tabs defaultValue="openai" className="pt-5 pb-1">
+  <TabsList className="">
+    <TabsTrigger value="openai">OpenAI</TabsTrigger>
+    <TabsTrigger value="anthropic">Anthropic</TabsTrigger>
+    <TabsTrigger value="fireworksai">FireworksAI</TabsTrigger>
+    <TabsTrigger value="mistralai">MistralAI</TabsTrigger>
+    <TabsTrigger value="groq">Groq</TabsTrigger>
+    <TabsTrigger value="vertexai">VertexAI</TabsTrigger>
+  </TabsList>
+
+  <TabsContent value="openai">
+    ```bash
+    npm i @langchain/openai
+    ```
+
+    Add environment variables
+
+    ```bash
+    OPENAI_API_KEY=your-api-key
+    ```
+
+    Instantiate the model
+
+    ```jsx {0} showLineNumbers
+    import { ChatOpenAI } from "@langchain/openai";
+
+    const llm = new ChatOpenAI({
+    model: "gpt-4o-mini",
+    temperature: 0
+    });
+    ````
+
+  </TabsContent>
+  
+  <TabsContent value="anthropic">
+    ```bash
+    npm i @langchain/anthropic
+    ```
+
+    Add environment variables
+
+    ```bash
+    ANTHROPIC_API_KEY=your-api-key
+    ```
+
+    Instantiate the model
+
+    ```jsx {0} showLineNumbers
+    import { ChatAnthropic } from "@langchain/anthropic";
+
+    const llm = new ChatAnthropic({
+    model: "claude-3-5-sonnet-20240620",
+    temperature: 0
+    });
+    ````
+
+  </TabsContent>
+
+  <TabsContent value="fireworksai">
+    ```bash
+    npm i @langchain/community
+    ```
+
+    Add environment variables
+
+    ```bash
+    FIREWORKS_API_KEY=your-api-key
+    ```
+
+    Instantiate the model
+
+    ```jsx {0} showLineNumbers
+    import { ChatFireworks } from "@langchain/community/chat_models/fireworks";
+
+    const llm = new ChatFireworks({
+    model: "accounts/fireworks/models/llama-v3p1-70b-instruct",
+    temperature: 0
+    });
+    ````
+
+  </TabsContent>
+
+  <TabsContent value="mistralai">
+    ```bash
+    npm i @langchain/mistralai
+    ```
+
+    Add environment variables
+
+    ```bash
+    MISTRAL_API_KEY=your-api-key
+    ```
+
+    Instantiate the model
+
+    ```jsx {0} showLineNumbers
+    import { ChatMistralAI } from "@langchain/mistralai";
+
+    const llm = new ChatMistralAI({
+    model: "mistral-large-latest",
+    temperature: 0
+    });
+    ````
+
+  </TabsContent>
+
+  <TabsContent value="groq">
+    ```bash
+    npm i @langchain/groq
+    ```
+
+    Add environment variables
+
+    ```bash
+    GROQ_API_KEY=your-api-key
+    ```
+
+    Instantiate the model
+
+    ```jsx {0} showLineNumbers
+    import { ChatGroq } from "@langchain/groq";
+
+    const llm = new ChatGroq({
+    model: "mixtral-8x7b-32768",
+    temperature: 0
+    });
+    ````
+
+  </TabsContent>
+
+  <TabsContent value="vertexai">
+    ```bash
+    npm i @langchain/google-vertexai
+    ```
+
+    Add environment variables
+
+    ```bash
+    GOOGLE_APPLICATION_CREDENTIALS=credentials.json
+    ```
+
+    Instantiate the model
+
+    ```jsx {0} showLineNumbers
+    import { ChatVertexAI } from "@langchain/google-vertexai";
+
+    const llm = new ChatVertexAI({
+    model: "gemini-1.5-flash",
+    temperature: 0
+    });
+    ````
+
+  </TabsContent>
+</Tabs>
+
+An embedding model:
+
+### Pick your embedding model:
+
+Install dependencies
+
+<Tabs defaultValue="memory" className="pt-5 pb-1">
+  <TabsList className="">
+    <TabsTrigger value="memory">Memory</TabsTrigger>
+    <TabsTrigger value="chroma">Chroma</TabsTrigger>
+    <TabsTrigger value="faiss">Faiss</TabsTrigger>
+    <TabsTrigger value="mongodb">MongoDB</TabsTrigger>
+    <TabsTrigger value="pgvector">PGVector</TabsTrigger>
+    <TabsTrigger value="pinecone">Pinecone</TabsTrigger>
+    <TabsTrigger value="qdrant">Qdrant</TabsTrigger>
+  </TabsList>
+
+  <TabsContent value="memory">
+    ```bash
+    npm i langchain
+    ```
+
+    ```jsx {0} showLineNumbers
+    import { MemoryVectorStore } from "langchain/vectorstores/memory";
+
+    const vectorStore = new MemoryVectorStore(embeddings);
+    ````
+  </TabsContent>
+  
+  <TabsContent value="chroma">
+    ```bash
+    npm i @langchain/community
+    ```
+
+    ```jsx {0} showLineNumbers
+    import { Chroma } from "@langchain/community/vectorstores/chroma";
+
+    const vectorStore = new Chroma(embeddings, {
+    collectionName: "a-test-collection",
+    });
+    ````
+  </TabsContent>
+
+  <TabsContent value="faiss">
+    ```bash
+    npm i @langchain/community
+    ```
+
+    ```jsx {0} showLineNumbers
+    import { FaissStore } from "@langchain/community/vectorstores/faiss";
+
+    const vectorStore = new FaissStore(embeddings, {});
+    ````
+  </TabsContent>
+
+  <TabsContent value="mongodb">
+    ```bash
+    npm i @langchain/mongodb
+    ```
+
+    ```jsx {0} showLineNumbers
+    import { MongoDBAtlasVectorSearch } from "@langchain/mongodb"
+    import { MongoClient } from "mongodb";
+
+    const client = new MongoClient(process.env.MONGODB_ATLAS_URI || "");
+    const collection = client
+    .db(process.env.MONGODB_ATLAS_DB_NAME)
+    .collection(process.env.MONGODB_ATLAS_COLLECTION_NAME);
+
+    const vectorStore = new MongoDBAtlasVectorSearch(embeddings, {
+    collection: collection,
+    indexName: "vector_index",
+    textKey: "text",
+    embeddingKey: "embedding",
+    });
+    ````
+
+  </TabsContent>
+
+  <TabsContent value="pgvector">
+    ```bash
+    npm i @langchain/community
+    ```
+
+    ```jsx {0} showLineNumbers
+    import PGVectorStore from "@langchain/community/vectorstores/pgvector";
+
+    const vectorStore = await PGVectorStore.initialize(embeddings, {})
+    ````
+
+  </TabsContent>
+
+  <TabsContent value="pinecone">
+    ```bash
+    npm i @langchain/pinecone
+    ```
+
+    ```jsx {0} showLineNumbers
+    import { PineconeStore } from "@langchain/pinecone";
+    import { Pinecone as PineconeClient } from "@pinecone-database/pinecone";
+
+    const pinecone = new PineconeClient();
+    const vectorStore = new PineconeStore(embeddings, {
+        pineconeIndex,
+        maxConcurrency: 5,
+    });
+    ````
+
+  </TabsContent>
+
+  <TabsContent value="qdrant">
+    ```bash
+    npm i @langchain/qdrant
+    ```
+
+    ```jsx {0} showLineNumbers
+    import { QdrantVectorStore } from "@langchain/qdrant";
+
+    const vectorStore = await QdrantVectorStore.fromExistingCollection(embeddings, {
+    url: process.env.QDRANT_URL,
+    collectionName: "langchainjs-testing",
+    });
+    ````
+
+  </TabsContent>
+</Tabs>
+
+## Preview
+
+In this guide we’ll build an app that answers questions about the website’s content. The specific website we will use is the [LLM Powered Autonomous Agents](https://lilianweng.github.io/posts/2023-06-23-agent/) blog post by Lilian Weng, which allows us to ask questions about the contents of the post.
+
+We can create a simple indexing pipeline and RAG chain to do this in ~50 lines of code.
+
+```jsx {0} showLineNumbers
+import "cheerio";
+import { CheerioWebBaseLoader } from "@langchain/community/document_loaders/web/cheerio";
+import { Document } from "@langchain/core/documents";
+import { ChatPromptTemplate } from "@langchain/core/prompts";
+import { pull } from "langchain/hub";
+import { Annotation, StateGraph } from "@langchain/langgraph";
+import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
+
+
+// Load and chunk contents of blog
+const pTagSelector = "p";
+const cheerioLoader = new CheerioWebBaseLoader(
+  "https://lilianweng.github.io/posts/2023-06-23-agent/",
+  {
+    selector: pTagSelector
+  }
+);
+
+const docs = await cheerioLoader.load();
+
+const splitter = new RecursiveCharacterTextSplitter({
+  chunkSize: 1000, chunkOverlap: 200
+});
+const allSplits = await splitter.splitDocuments(docs);
+
+
+// Index chunks
+await vectorStore.addDocuments(allSplits)
+
+// Define prompt for question-answering
+const promptTemplate = await pull<ChatPromptTemplate>("rlm/rag-prompt");
+
+// Define state for application
+const InputStateAnnotation = Annotation.Root({
+  question: Annotation<string>,
+});
+
+const StateAnnotation = Annotation.Root({
+  question: Annotation<string>,
+  context: Annotation<Document[]>,
+  answer: Annotation<string>,
+});
+
+// Define application steps
+const retrieve = async (state: typeof InputStateAnnotation.State) => {
+  const retrievedDocs = await vectorStore.similaritySearch(state.question)
+  return { context: retrievedDocs };
+};
+
+
+const generate = async (state: typeof StateAnnotation.State) => {
+  const docsContent = state.context.map(doc => doc.pageContent).join("\n");
+  const messages = await promptTemplate.invoke({ question: state.question, context: docsContent });
+  const response = await llm.invoke(messages);
+  return { answer: response.content };
+};
+
+
+// Compile application and test
+const graph = new StateGraph(StateAnnotation)
+  .addNode("retrieve", retrieve)
+  .addNode("generate", generate)
+  .addEdge("__start__", "retrieve")
+  .addEdge("retrieve", "generate")
+  .addEdge("generate", "__end__")
+  .compile();
+````
+
+```bash
+Task decomposition is the process of breaking down complex tasks into smaller, more manageable steps. This can be achieved through various methods, including prompting large language models (LLMs) or using task-specific instructions. Techniques like Chain of Thought (CoT) and Tree of Thoughts further enhance this process by structuring reasoning and exploring multiple possibilities at each step.
+```
+
+Check out the [LangSmith trace](https://smith.langchain.com/public/84a36239-b466-41bd-ac84-befc33ab50df/r).
+
+## Detailed walkthrough
+
+### Indexing
+
+### Retrieval and Generation

@@ -1,0 +1,338 @@
+---
+title: Summarize Text
+---
+
+<Note title="INFO" type="note">
+This tutorial demonstrates text summarization using built-in chains and [LangGraph](https://langchain-ai.github.io/langgraphjs/).
+
+See here for a previous version of this page, which showcased the legacy chain [RefineDocumentsChain](https://v03.api.js.langchain.com/classes/langchain.chains.RefineDocumentsChain.html).
+</Note>
+
+Suppose you have a set of documents (PDFs, Notion pages, customer questions, etc.) and you want to summarize the content.
+
+LLMs are a great tool for this given their proficiency in understanding and synthesizing text.
+
+In the context of [retrieval-augmented generation](/docs/tutorials/rag), summarizing text can help distill the information in a large number of retrieved documents to provide context for a LLM.
+
+In this walkthrough we’ll go over how to summarize content from multiple documents using LLMs.
+
+## Concepts
+
+Concepts we will cover are:
+
+- Using language models.
+
+- Using document loaders, specifically the CheerioWebBaseLoader to load content from an HTML webpage.
+
+- Two ways to summarize or otherwise combine documents.
+
+    - Stuff, which simply concatenates documents into a prompt;
+    - Map-reduce, for larger sets of documents. This splits documents into batches, summarizes those, and then summarizes the summaries.
+
+## Setup
+
+### Jupyter Notebook
+This and other tutorials are perhaps most conveniently run in a Jupyter notebooks. Going through guides in an interactive environment is a great way to better understand them. See here for instructions on how to install.
+
+### Installation
+To install LangChain run:
+
+```bash
+bash npm2yarn npm i langchain @langchain/core
+```
+
+For more details, see [our Installation guide](/docs/introduction/installation).
+
+### LangSmith
+Many of the applications you build with LangChain will contain multiple steps with multiple invocations of LLM calls. As these applications get more and more complex, it becomes crucial to be able to inspect what exactly is going on inside your chain or agent. The best way to do this is with LangSmith.
+
+After you sign up at the link above, make sure to set your environment variables to start logging traces:
+
+```bash
+export LANGCHAIN_TRACING_V2="true"
+export LANGCHAIN_API_KEY="..."
+
+# Reduce tracing latency if you are not in a serverless environment
+# export LANGCHAIN_CALLBACKS_BACKGROUND=true
+```
+
+## Overview
+
+A central question for building a summarizer is how to pass your documents into the LLM’s context window. Two common approaches for this are:
+
+1. **Stuff**: Simply “stuff” all your documents into a single prompt. This is the simplest approach.
+
+2. **Map-reduce**: Summarize each document on its own in a “map” step and then “reduce” the summaries into a final summary.
+
+Note that map-reduce is especially effective when understanding of a sub-document does not rely on preceding context. For example, when summarizing a corpus of many, shorter documents. In other cases, such as summarizing a novel or body of text with an inherent sequence, iterative refinement may be more effective.
+
+First we load in our documents. We will use WebBaseLoader to load a blog post:
+
+```jsx {0} showLineNumbers
+import "cheerio";
+import { CheerioWebBaseLoader } from "@langchain/community/document_loaders/web/cheerio";
+
+const pTagSelector = "p";
+const cheerioLoader = new CheerioWebBaseLoader(
+  "https://lilianweng.github.io/posts/2023-06-23-agent/",
+  {
+    selector: pTagSelector,
+  }
+);
+
+const docs = await cheerioLoader.load();
+````
+
+Let’s next select a chat model:
+
+### Pick your chat model:
+
+Install dependencies:
+
+<Note title="TIP" type="success">
+  See [this section for general instructions on installing integration
+  packages](/docs/introduction/installation#installation).
+</Note>
+
+<Tabs defaultValue="openai" className="pt-5 pb-1">
+  <TabsList className="">
+    <TabsTrigger value="openai">OpenAI</TabsTrigger>
+    <TabsTrigger value="anthropic">Anthropic</TabsTrigger>
+    <TabsTrigger value="fireworksai">FireworksAI</TabsTrigger>
+    <TabsTrigger value="mistralai">MistralAI</TabsTrigger>
+    <TabsTrigger value="groq">Groq</TabsTrigger>
+    <TabsTrigger value="vertexai">VertexAI</TabsTrigger>
+  </TabsList>
+
+  <TabsContent value="openai">
+    ```bash
+    npm i @langchain/openai
+    ```
+
+    Add environment variables
+
+    ```bash
+    OPENAI_API_KEY=your-api-key
+    ```
+
+    Instantiate the model
+
+    ```jsx {0} showLineNumbers
+    import { ChatOpenAI } from "@langchain/openai";
+
+    const llm = new ChatOpenAI({
+    model: "gpt-4o-mini",
+    temperature: 0
+    });
+    ````
+
+  </TabsContent>
+  
+  <TabsContent value="anthropic">
+    ```bash
+    npm i @langchain/anthropic
+    ```
+
+    Add environment variables
+
+    ```bash
+    ANTHROPIC_API_KEY=your-api-key
+    ```
+
+    Instantiate the model
+
+    ```jsx {0} showLineNumbers
+    import { ChatAnthropic } from "@langchain/anthropic";
+
+    const llm = new ChatAnthropic({
+    model: "claude-3-5-sonnet-20240620",
+    temperature: 0
+    });
+    ````
+
+  </TabsContent>
+
+  <TabsContent value="fireworksai">
+    ```bash
+    npm i @langchain/community
+    ```
+
+    Add environment variables
+
+    ```bash
+    FIREWORKS_API_KEY=your-api-key
+    ```
+
+    Instantiate the model
+
+    ```jsx {0} showLineNumbers
+    import { ChatFireworks } from "@langchain/community/chat_models/fireworks";
+
+    const llm = new ChatFireworks({
+    model: "accounts/fireworks/models/llama-v3p1-70b-instruct",
+    temperature: 0
+    });
+    ````
+
+  </TabsContent>
+
+  <TabsContent value="mistralai">
+    ```bash
+    npm i @langchain/mistralai
+    ```
+
+    Add environment variables
+
+    ```bash
+    MISTRAL_API_KEY=your-api-key
+    ```
+
+    Instantiate the model
+
+    ```jsx {0} showLineNumbers
+    import { ChatMistralAI } from "@langchain/mistralai";
+
+    const llm = new ChatMistralAI({
+    model: "mistral-large-latest",
+    temperature: 0
+    });
+    ````
+
+  </TabsContent>
+
+  <TabsContent value="groq">
+    ```bash
+    npm i @langchain/groq
+    ```
+
+    Add environment variables
+
+    ```bash
+    GROQ_API_KEY=your-api-key
+    ```
+
+    Instantiate the model
+
+    ```jsx {0} showLineNumbers
+    import { ChatGroq } from "@langchain/groq";
+
+    const llm = new ChatGroq({
+    model: "mixtral-8x7b-32768",
+    temperature: 0
+    });
+    ````
+
+  </TabsContent>
+
+  <TabsContent value="vertexai">
+    ```bash
+    npm i @langchain/google-vertexai
+    ```
+
+    Add environment variables
+
+    ```bash
+    GOOGLE_APPLICATION_CREDENTIALS=credentials.json
+    ```
+
+    Instantiate the model
+
+    ```jsx {0} showLineNumbers
+    import { ChatVertexAI } from "@langchain/google-vertexai";
+
+    const llm = new ChatVertexAI({
+    model: "gemini-1.5-flash",
+    temperature: 0
+    });
+    ````
+
+  </TabsContent>
+</Tabs>
+
+## Stuff: summarize in a single LLM call
+
+We can use createStuffDocumentsChain, especially if using larger context window models such as:
+
+- 128k token OpenAI gpt-4o
+- 200k token Anthropic claude-3-5-sonnet-20240620
+
+The chain will take a list of documents, insert them all into a prompt, and pass that prompt to an LLM:
+
+```jsx {0} showLineNumbers
+import { createStuffDocumentsChain } from "langchain/chains/combine_documents";
+import { StringOutputParser } from "@langchain/core/output_parsers";
+import { PromptTemplate } from "@langchain/core/prompts";
+
+// Define prompt
+const prompt = PromptTemplate.fromTemplate(
+  "Summarize the main themes in these retrieved docs: {context}"
+);
+
+// Instantiate
+const chain = await createStuffDocumentsChain({
+  llm: llm,
+  outputParser: new StringOutputParser(),
+  prompt,
+});
+
+// Invoke
+const result = await chain.invoke({ context: docs });
+console.log(result);
+````
+
+```bash
+The retrieved documents discuss the development and capabilities of autonomous agents powered by large language models (LLMs). Here are the main themes:
+
+1. **LLM as a Core Controller**: LLMs are positioned as the central intelligence in autonomous agent systems, capable of performing complex tasks beyond simple text generation. They can be framed as general problem solvers, with various implementations like AutoGPT, GPT-Engineer, and BabyAGI serving as proof-of-concept demonstrations.
+
+2. **Task Decomposition and Planning**: Effective task management is crucial for LLMs. Techniques like Chain of Thought (CoT) and Tree of Thoughts (ToT) are highlighted for breaking down complex tasks into manageable steps. CoT encourages step-by-step reasoning, while ToT explores multiple reasoning paths, enhancing the agent's problem-solving capabilities.
+
+3. **Integration of External Tools**: The use of external tools significantly enhances LLM capabilities. Frameworks like MRKL and Toolformer allow LLMs to interact with various APIs and tools, improving their performance in specific tasks. This modular approach enables LLMs to route inquiries to specialized modules, combining neural and symbolic reasoning.
+
+4. **Self-Reflection and Learning**: Self-reflection mechanisms are essential for agents to learn from past actions and improve over time. Approaches like ReAct and Reflexion integrate reasoning with action, allowing agents to evaluate their performance and adjust strategies based on feedback.
+
+5. **Memory and Context Management**: The documents discuss different types of memory (sensory, short-term, long-term) and their relevance to LLMs. The challenge of finite context length in LLMs is emphasized, as it limits the ability to retain and utilize historical information effectively. Techniques like external memory storage and vector databases are suggested to mitigate these limitations.
+
+6. **Challenges and Limitations**: Several challenges are identified, including the reliability of natural language interfaces, difficulties in long-term planning, and the need for robust task decomposition. The documents note that LLMs may struggle with unexpected errors and formatting issues, which can hinder their performance in real-world applications.
+
+7. **Emerging Applications**: The potential applications of LLM-powered agents are explored, including scientific discovery, autonomous design, and interactive simulations (e.g., generative agents mimicking human behavior). These applications demonstrate the versatility and innovative possibilities of LLMs in various domains.
+
+Overall, the documents present a comprehensive overview of the current state of LLM-powered autonomous agents, highlighting their capabilities, methodologies, and the challenges they face in practical implementations.
+```
+
+### Streaming
+
+Note that we can also stream the result token-by-token:
+
+```jsx {0} showLineNumbers
+const stream = await chain.stream({ context: docs });
+
+for await (const token of stream) {
+  process.stdout.write(token + "|");
+}
+````
+
+```bash
+|The| retrieved| documents| discuss| the| development| and| capabilities| of| autonomous| agents| powered| by| large| language| models| (|LL|Ms|).| Here| are| the| main| themes|:
+
+|1|.| **|LL|M| as| a| Core| Controller|**|:| L|LM|s| are| positioned| as| the| central| intelligence| in| autonomous| agent| systems|,| capable| of| performing| complex| tasks| beyond| simple| text| generation|.| They| can| be| framed| as| general| problem| sol|vers|,| with| various| implementations| like| Auto|GPT|,| GPT|-|Engineer|,| and| Baby|AG|I| serving| as| proof|-of|-con|cept| demonstrations|.
+
+|2|.| **|Task| De|composition| and| Planning|**|:| Effective| task| management| is| crucial| for| L|LM|s| to| handle| complicated| tasks|.| Techniques| like| Chain| of| Thought| (|Co|T|)| and| Tree| of| Thoughts| (|To|T|)| are| highlighted| for| breaking| down| tasks| into| manageable| steps| and| exploring| multiple| reasoning| paths|.| Additionally|,| L|LM|+|P| integrates| classical| planning| methods| to| enhance| long|-term| planning| capabilities|.
+
+|3|.| **|Self|-|Reflection| and| Learning|**|:| Self|-ref|lection| mechanisms| are| essential| for| agents| to| learn| from| past| actions| and| improve| their| decision|-making| processes|.| Framework|s| like| Re|Act| and| Reflex|ion| incorporate| dynamic| memory| and| self|-ref|lection| to| refine| reasoning| skills| and| enhance| performance| through| iterative| learning|.
+
+|4|.| **|Tool| Util|ization|**|:| The| integration| of| external| tools| significantly| extends| the| capabilities| of| L|LM|s|.| Appro|aches| like| MR|KL| and| Tool|former| demonstrate| how| L|LM|s| can| be| augmented| with| various| APIs| to| perform| specialized| tasks|,| enhancing| their| functionality| in| real|-world| applications|.
+
+|5|.| **|Memory| and| Context| Management|**|:| The| documents| discuss| different| types| of| memory| (|sens|ory|,| short|-term|,| long|-term|)| and| their| relevance| to| L|LM|s|.| The| challenge| of| finite| context| length| is| emphasized|,| as| it| limits| the| model|'s| ability| to| retain| and| utilize| historical| information| effectively|.| Techniques| like| vector| stores| and| approximate| nearest| neighbors| (|ANN|)| are| suggested| to| improve| retrieval| speed| and| memory| management|.
+
+|6|.| **|Challenges| and| Limit|ations|**|:| Several| limitations| of| current| L|LM|-powered| agents| are| identified|,| including| issues| with| the| reliability| of| natural| language| interfaces|,| difficulties| in| long|-term| planning|,| and| the| need| for| improved| efficiency| in| task| execution|.| The| documents| also| highlight| the| importance| of| human| feedback| in| refining| model| outputs| and| addressing| potential| biases|.
+
+|7|.| **|Emer|ging| Applications|**|:| The| potential| applications| of| L|LM|-powered| agents| are| explored|,| including| scientific| discovery|,| autonomous| design|,| and| interactive| simulations| (|e|.g|.,| gener|ative| agents|).| These| applications| showcase| the| versatility| of| L|LM|s| in| various| domains|,| from| drug| discovery| to| social| behavior| simulations|.
+
+|Overall|,| the| documents| present| a| comprehensive| overview| of| the| current| state| of| L|LM|-powered| autonomous| agents|,| their| capabilities|,| methodologies| for| improvement|,| and| the| challenges| they| face| in| practical| applications|.|||
+```
+
+### Go deeper
+
+- You can easily customize the prompt.
+- You can easily try different LLMs, (e.g., Claude) via the llm parameter.

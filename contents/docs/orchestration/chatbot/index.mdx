@@ -1,0 +1,252 @@
+---
+title: Build a Chatbot
+description: This tutorial will familiarize you with LangChain’s document loader, embedding, and vector store abstractions. These abstractions are designed to support retrieval of data– from (vector) databases and other sources– for integration with LLM workflows. They are important for applications that fetch data to be reasoned over as part of model inference, as in the case of retrieval-augmented generation, or RAG (see our RAG tutorial here).
+keywords: ["navigation", "sidebar", "menus", "mdx", "nextjs", "documents"]
+---
+
+<Note title="Prerequisites" type="success">
+    This guide assumes familiarity with the following concepts:
+
+    - Chat Models
+    - Prompt Templates
+    - Chat History
+    This guide requires **langgraph >= 0.2.28**.
+
+</Note>
+
+<Note title="Note" type="note">
+  This tutorial previously built a chatbot using **RunnableWithMessageHistory**. You can access this version of the tutorial in the v0.2 docs.
+
+The LangGraph implementation offers a number of advantages over **RunnableWithMessageHistory**, including the ability to persist arbitrary components of an application's state (instead of only messages).
+</Note>
+
+## Overview
+
+We’ll go over an example of how to design and implement an LLM-powered chatbot. This chatbot will be able to have a conversation and remember previous interactions.
+
+Note that this chatbot that we build will only use the language model to have a conversation. There are several other related concepts that you may be looking for:
+
+- [Conversational RAG](/docs/tutorials/qa_chat_history): Enable a chatbot experience over an external source of data
+- [Agents](https://langchain-ai.github.io/langgraphjs/tutorials/multi_agent/agent_supervisor/): Build a chatbot that can take actions
+
+This tutorial will cover the basics which will be helpful for those two more advanced topics, but feel free to skip directly to there should you choose.
+
+## Setup
+
+### Jupyter Notebook
+
+This guide (and most of the other guides in the documentation) uses Jupyter notebooks and assumes the reader is as well. Jupyter notebooks are perfect for learning how to work with LLM systems because oftentimes things can go wrong (unexpected output, API down, etc) and going through guides in an interactive environment is a great way to better understand them.
+
+This and other tutorials are perhaps most conveniently run in a Jupyter notebook. See here for instructions on how to install.
+
+### Installation
+
+For this tutorial we will need **@langchain/core** and **langgraph**:
+
+<Tabs defaultValue="npm" className="pt-5 pb-1">
+    <TabsList className="">
+    <TabsTrigger value="npm">npm</TabsTrigger>
+    <TabsTrigger value="yarn">yarn</TabsTrigger>
+    <TabsTrigger value="pnpm">pnpm</TabsTrigger>
+    </TabsList>
+
+    <TabsContent value="npm">
+    ```bash
+    npm i @langchain/core @langchain/langgraph uuid
+    ```
+    </TabsContent>
+
+    <TabsContent value="yarn">
+    ```bash
+    yarn add @langchain/core @langchain/langgraph uuid
+    ```
+    </TabsContent>
+
+    <TabsContent value="pnpm">
+    ```bash
+    pnpm add @langchain/core @langchain/langgraph uuid
+    ```
+    </TabsContent>
+
+</Tabs>
+
+For more details, see our [Installation guide](/docs/introduction/installation).
+
+### LangSmith
+
+Many of the applications you build with LangChain will contain multiple steps with multiple invocations of LLM calls. As these applications get more and more complex, it becomes crucial to be able to inspect what exactly is going on inside your chain or agent. The best way to do this is with LangSmith.
+
+After you sign up at the link above, make sure to set your environment variables to start logging traces:
+
+```bash
+process.env.LANGCHAIN_TRACING_V2 = "true";
+process.env.LANGCHAIN_API_KEY = "...";
+```
+
+## Quickstart
+
+First up, let’s learn how to use a language model by itself. LangChain supports many different language models that you can use interchangeably - select the one you want to use below!
+
+### Pick your chat model:
+
+Install dependencies:
+
+<Note title="TIP" type="success">
+  See [this section for general instructions on installing integration
+  packages](/docs/introduction/installation#installation).
+</Note>
+
+<Tabs defaultValue="openai" className="pt-5 pb-1">
+  <TabsList className="">
+    <TabsTrigger value="openai">OpenAI</TabsTrigger>
+    <TabsTrigger value="anthropic">Anthropic</TabsTrigger>
+    <TabsTrigger value="fireworksai">FireworksAI</TabsTrigger>
+    <TabsTrigger value="mistralai">MistralAI</TabsTrigger>
+    <TabsTrigger value="groq">Groq</TabsTrigger>
+    <TabsTrigger value="vertexai">VertexAI</TabsTrigger>
+  </TabsList>
+
+  <TabsContent value="openai">
+    ```bash
+    npm i @langchain/openai
+    ```
+
+    Add environment variables
+
+    ```bash
+    OPENAI_API_KEY=your-api-key
+    ```
+
+    Instantiate the model
+
+    ```jsx {0} showLineNumbers
+    import { ChatOpenAI } from "@langchain/openai";
+
+    const llm = new ChatOpenAI({
+    model: "gpt-4o-mini",
+    temperature: 0
+    });
+    ````
+
+  </TabsContent>
+  
+  <TabsContent value="anthropic">
+    ```bash
+    npm i @langchain/anthropic
+    ```
+
+    Add environment variables
+
+    ```bash
+    ANTHROPIC_API_KEY=your-api-key
+    ```
+
+    Instantiate the model
+
+    ```jsx {0} showLineNumbers
+    import { ChatAnthropic } from "@langchain/anthropic";
+
+    const llm = new ChatAnthropic({
+    model: "claude-3-5-sonnet-20240620",
+    temperature: 0
+    });
+    ````
+
+  </TabsContent>
+
+  <TabsContent value="fireworksai">
+    ```bash
+    npm i @langchain/community
+    ```
+
+    Add environment variables
+
+    ```bash
+    FIREWORKS_API_KEY=your-api-key
+    ```
+
+    Instantiate the model
+
+    ```jsx {0} showLineNumbers
+    import { ChatFireworks } from "@langchain/community/chat_models/fireworks";
+
+    const llm = new ChatFireworks({
+    model: "accounts/fireworks/models/llama-v3p1-70b-instruct",
+    temperature: 0
+    });
+    ````
+
+  </TabsContent>
+
+  <TabsContent value="mistralai">
+    ```bash
+    npm i @langchain/mistralai
+    ```
+
+    Add environment variables
+
+    ```bash
+    MISTRAL_API_KEY=your-api-key
+    ```
+
+    Instantiate the model
+
+    ```jsx {0} showLineNumbers
+    import { ChatMistralAI } from "@langchain/mistralai";
+
+    const llm = new ChatMistralAI({
+    model: "mistral-large-latest",
+    temperature: 0
+    });
+    ````
+
+  </TabsContent>
+
+  <TabsContent value="groq">
+    ```bash
+    npm i @langchain/groq
+    ```
+
+    Add environment variables
+
+    ```bash
+    GROQ_API_KEY=your-api-key
+    ```
+
+    Instantiate the model
+
+    ```jsx {0} showLineNumbers
+    import { ChatGroq } from "@langchain/groq";
+
+    const llm = new ChatGroq({
+    model: "mixtral-8x7b-32768",
+    temperature: 0
+    });
+    ````
+
+  </TabsContent>
+
+  <TabsContent value="vertexai">
+    ```bash
+    npm i @langchain/google-vertexai
+    ```
+
+    Add environment variables
+
+    ```bash
+    GOOGLE_APPLICATION_CREDENTIALS=credentials.json
+    ```
+
+    Instantiate the model
+
+    ```jsx {0} showLineNumbers
+    import { ChatVertexAI } from "@langchain/google-vertexai";
+
+    const llm = new ChatVertexAI({
+    model: "gemini-1.5-flash",
+    temperature: 0
+    });
+    ````
+
+  </TabsContent>
+</Tabs>

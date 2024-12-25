@@ -1,0 +1,103 @@
+---
+title: Build a Question/Answering system over SQL data
+---
+
+<Note title="Prerequisites" type="note">
+  This guide assumes familiarity with the following concepts:
+
+    - Chat models
+    - Tools
+    - Agents
+    - LangGraph
+</Note>
+
+Enabling a LLM system to query structured data can be qualitatively different from unstructured text data. Whereas in the latter it is common to generate text that can be searched against a vector database, the approach for structured data is often for the LLM to write and execute queries in a DSL, such as SQL. In this guide we’ll go over the basic ways to create a Q&A system over tabular data in databases. We will cover implementations using both chains and agents. These systems will allow us to ask a question about the data in a database and get back a natural language answer. The main difference between the two is that our agent can query the database in a loop as many times as it needs to answer the question.
+
+## Security note
+
+Building Q&A systems of SQL databases requires executing model-generated SQL queries. There are inherent risks in doing this. Make sure that your database connection permissions are always scoped as narrowly as possible for your chain/agent’s needs. This will mitigate though not eliminate the risks of building a model-driven system. For more on general security best practices, [see here](/docs/security).
+
+## Architecture
+
+At a high-level, the steps of these systems are:
+
+1. Convert question to SQL query: Model converts user input to a SQL query.
+2. Execute SQL query: Execute the query.
+3. Answer the question: Model responds to user input using the query results.
+
+![sql_qa](/images/sql_qa.png "sql_qa")
+
+## Setup
+
+First, get required packages and set environment variables: **bash npm2yarn npm i langchain @langchain/community @langchain/langgraph**
+
+```bash
+# Uncomment the below to use LangSmith. Not required, but recommended for debugging and observability.
+# export LANGCHAIN_API_KEY=<your key>
+# export LANGCHAIN_TRACING_V2=true
+
+# Reduce tracing latency if you are not in a serverless environment
+# export LANGCHAIN_CALLBACKS_BACKGROUND=true
+```
+
+### Sample data
+
+The below example will use a SQLite connection with the Chinook database, which is a sample database that represents a digital media store. Follow [these installation steps](https://database.guide/2-sample-databases-sqlite/) to create **Chinook.db** in the same directory as this notebook. You can also download and build the database via the command line:
+
+```bash
+curl -s https://raw.githubusercontent.com/lerocha/chinook-database/master/ChinookDatabase/DataSources/Chinook_Sqlite.sql | sqlite3 Chinook.db
+```
+
+Now, **Chinook.db** is in our directory and we can interface with it using the SqlDatabase class:
+
+```jsx {0} showLineNumbers
+import { SqlDatabase } from "langchain/sql_db";
+import { DataSource } from "typeorm";
+
+const datasource = new DataSource({
+  type: "sqlite",
+  database: "Chinook.db",
+});
+const db = await SqlDatabase.fromDataSourceParams({
+  appDataSource: datasource,
+});
+
+await db.run("SELECT * FROM Artist LIMIT 10;");
+````
+
+```bash
+[{"ArtistId":1,"Name":"AC/DC"},{"ArtistId":2,"Name":"Accept"},{"ArtistId":3,"Name":"Aerosmith"},{"ArtistId":4,"Name":"Alanis Morissette"},{"ArtistId":5,"Name":"Alice In Chains"},{"ArtistId":6,"Name":"Antônio Carlos Jobim"},{"ArtistId":7,"Name":"Apocalyptica"},{"ArtistId":8,"Name":"Audioslave"},{"ArtistId":9,"Name":"BackBeat"},{"ArtistId":10,"Name":"Billy Cobham"}]
+```
+
+Great! We’ve got a SQL database that we can query. Now let’s try hooking it up to an LLM.
+
+## Chains
+
+Chains are compositions of predictable steps. In LangGraph, we can represent a chain via simple sequence of nodes. Let’s create a sequence of steps that, given a question, does the following: - converts the question into a SQL query; - executes the query; - uses the result to answer the original question.
+
+There are scenarios not supported by this arrangement. For example, this system will execute a SQL query for any user input– even “hello”. Importantly, as we’ll see below, some questions require more than one query to answer. We will address these scenarios in the Agents section.
+
+### Application state
+
+The LangGraph state of our application controls what data is input to the application, transferred between steps, and output by the application.
+
+For this application, we can just keep track of the input question, generated query, query result, and generated answer:
+
+```jsx {0} showLineNumbers
+import { Annotation } from "@langchain/langgraph";
+
+const InputStateAnnotation = Annotation.Root({
+  question: Annotation<string>,
+});
+
+const StateAnnotation = Annotation.Root({
+  question: Annotation<string>,
+  query: Annotation<string>,
+  result: Annotation<string>,
+  answer: Annotation<string>,
+});
+````
+
+Now we just need functions that operate on this state and populate its contents.
+
+

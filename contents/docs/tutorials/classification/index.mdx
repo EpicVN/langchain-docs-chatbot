@@ -26,4 +26,305 @@ Let’s see a very straightforward example of how we can use tool calling for ta
 
 ### Pick your chat model:
 
-Install dependencies
+Install dependencies:
+
+<Note title="TIP" type="success">
+  See [this section for general instructions on installing integration
+  packages](/docs/introduction/installation#installation).
+</Note>
+
+<Tabs defaultValue="openai" className="pt-5 pb-1">
+  <TabsList className="">
+    <TabsTrigger value="openai">OpenAI</TabsTrigger>
+    <TabsTrigger value="anthropic">Anthropic</TabsTrigger>
+    <TabsTrigger value="fireworksai">FireworksAI</TabsTrigger>
+    <TabsTrigger value="mistralai">MistralAI</TabsTrigger>
+    <TabsTrigger value="groq">Groq</TabsTrigger>
+    <TabsTrigger value="vertexai">VertexAI</TabsTrigger>
+  </TabsList>
+
+  <TabsContent value="openai">
+    ```bash
+    npm i @langchain/openai
+    ```
+
+    Add environment variables
+
+    ```bash
+    OPENAI_API_KEY=your-api-key
+    ```
+
+    Instantiate the model
+
+    ```jsx {0} showLineNumbers
+    import { ChatOpenAI } from "@langchain/openai";
+
+    const llm = new ChatOpenAI({
+    model: "gpt-4o-mini",
+    temperature: 0
+    });
+    ````
+
+  </TabsContent>
+  
+  <TabsContent value="anthropic">
+    ```bash
+    npm i @langchain/anthropic
+    ```
+
+    Add environment variables
+
+    ```bash
+    ANTHROPIC_API_KEY=your-api-key
+    ```
+
+    Instantiate the model
+
+    ```jsx {0} showLineNumbers
+    import { ChatAnthropic } from "@langchain/anthropic";
+
+    const llm = new ChatAnthropic({
+    model: "claude-3-5-sonnet-20240620",
+    temperature: 0
+    });
+    ````
+
+  </TabsContent>
+
+  <TabsContent value="fireworksai">
+    ```bash
+    npm i @langchain/community
+    ```
+
+    Add environment variables
+
+    ```bash
+    FIREWORKS_API_KEY=your-api-key
+    ```
+
+    Instantiate the model
+
+    ```jsx {0} showLineNumbers
+    import { ChatFireworks } from "@langchain/community/chat_models/fireworks";
+
+    const llm = new ChatFireworks({
+    model: "accounts/fireworks/models/llama-v3p1-70b-instruct",
+    temperature: 0
+    });
+    ````
+
+  </TabsContent>
+
+  <TabsContent value="mistralai">
+    ```bash
+    npm i @langchain/mistralai
+    ```
+
+    Add environment variables
+
+    ```bash
+    MISTRAL_API_KEY=your-api-key
+    ```
+
+    Instantiate the model
+
+    ```jsx {0} showLineNumbers
+    import { ChatMistralAI } from "@langchain/mistralai";
+
+    const llm = new ChatMistralAI({
+    model: "mistral-large-latest",
+    temperature: 0
+    });
+    ````
+
+  </TabsContent>
+
+  <TabsContent value="groq">
+    ```bash
+    npm i @langchain/groq
+    ```
+
+    Add environment variables
+
+    ```bash
+    GROQ_API_KEY=your-api-key
+    ```
+
+    Instantiate the model
+
+    ```jsx {0} showLineNumbers
+    import { ChatGroq } from "@langchain/groq";
+
+    const llm = new ChatGroq({
+    model: "mixtral-8x7b-32768",
+    temperature: 0
+    });
+    ````
+
+  </TabsContent>
+
+  <TabsContent value="vertexai">
+    ```bash
+    npm i @langchain/google-vertexai
+    ```
+
+    Add environment variables
+
+    ```bash
+    GOOGLE_APPLICATION_CREDENTIALS=credentials.json
+    ```
+
+    Instantiate the model
+
+    ```jsx {0} showLineNumbers
+    import { ChatVertexAI } from "@langchain/google-vertexai";
+
+    const llm = new ChatVertexAI({
+    model: "gemini-1.5-flash",
+    temperature: 0
+    });
+    ````
+
+  </TabsContent>
+</Tabs>
+
+Let’s specify a Zod schema with a few properties and their expected type in our schema.
+
+```jsx {0} showLineNumbers
+import { ChatPromptTemplate } from "@langchain/core/prompts";
+import { z } from "zod";
+
+const taggingPrompt = ChatPromptTemplate.fromTemplate(
+  `Extract the desired information from the following passage.
+
+Only extract the properties mentioned in the 'Classification' function.
+
+Passage:
+{input}
+`
+);
+
+const classificationSchema = z.object({
+  sentiment: z.string().describe("The sentiment of the text"),
+  aggressiveness: z
+    .number()
+    .int()
+    .min(1)
+    .max(10)
+    .describe("How aggressive the text is on a scale from 1 to 10"),
+  language: z.string().describe("The language the text is written in"),
+});
+
+// Name is optional, but gives the models more clues as to what your schema represents
+const llmWihStructuredOutput = llm.withStructuredOutput(classificationSchema, {
+  name: "extractor",
+});
+````
+
+```jsx {0} showLineNumbers
+const prompt1 = await taggingPrompt.invoke({
+  input:
+    "Estoy increiblemente contento de haberte conocido! Creo que seremos muy buenos amigos!",
+});
+await llmWihStructuredOutput.invoke(prompt1);
+````
+
+```bash
+{ sentiment: 'contento', aggressiveness: 1, language: 'es' }
+```
+
+As we can see in the example, it correctly interprets what we want.
+
+The results vary so that we may get, for example, sentiments in different languages (‘positive’, ‘enojado’ etc.).
+
+We will see how to control these results in the next section.
+
+## Finer control
+
+Careful schema definition gives us more control over the model’s output.
+
+Specifically, we can define:
+
+- possible values for each property
+- description to make sure that the model understands the property
+- required properties to be returned
+
+Let’s redeclare our Zod schema to control for each of the previously mentioned aspects using enums:
+
+```jsx {0} showLineNumbers
+import { z } from "zod";
+
+const classificationSchema2 = z.object({
+  sentiment: z
+    .enum(["happy", "neutral", "sad"])
+    .describe("The sentiment of the text"),
+  aggressiveness: z
+    .number()
+    .int()
+    .min(1)
+    .max(5)
+    .describe(
+      "describes how aggressive the statement is, the higher the number the more aggressive"
+    ),
+  language: z
+    .enum(["spanish", "english", "french", "german", "italian"])
+    .describe("The language the text is written in"),
+});
+````
+
+```jsx {0} showLineNumbers
+const taggingPrompt2 = ChatPromptTemplate.fromTemplate(
+  `Extract the desired information from the following passage.
+
+Only extract the properties mentioned in the 'Classification' function.
+
+Passage:
+{input}
+`
+);
+
+const llmWihStructuredOutput2 = llm.withStructuredOutput(
+  classificationSchema2,
+  { name: "extractor" }
+);
+````
+
+Now the answers will be restricted in a way we expect!
+
+```jsx {0} showLineNumbers
+const prompt2 = await taggingPrompt2.invoke({
+  input:
+    "Estoy increiblemente contento de haberte conocido! Creo que seremos muy buenos amigos!",
+});
+await llmWihStructuredOutput2.invoke(prompt2);
+````
+
+```bash
+{ sentiment: 'happy', aggressiveness: 1, language: 'spanish' }
+```
+
+```jsx {0} showLineNumbers
+const prompt3 = await taggingPrompt2.invoke({
+  input: "Estoy muy enojado con vos! Te voy a dar tu merecido!",
+});
+await llmWihStructuredOutput2.invoke(prompt3);
+````
+
+```bash
+{ sentiment: 'sad', aggressiveness: 5, language: 'spanish' }
+```
+
+```jsx {0} showLineNumbers
+const prompt4 = await taggingPrompt2.invoke({
+  input: "Weather is ok here, I can go outside without much more than a coat",
+});
+await llmWihStructuredOutput2.invoke(prompt4);
+````
+
+```bash
+{ sentiment: 'neutral', aggressiveness: 1, language: 'english' }
+```
+
+The [LangSmith trace](https://smith.langchain.com/public/455f5404-8784-49ce-8851-0619b99e936f/r) lets us peek under the hood:
+
+![LangSmith trace](/images/langsmith_trace.png "LangSmith trace")

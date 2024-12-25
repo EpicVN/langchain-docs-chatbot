@@ -1,0 +1,176 @@
+---
+title: Build a Question Answering application over a Graph Database
+description: In this guide we’ll go over the basic ways to create a Q&A chain over a graph database. These systems will allow us to ask a question about the data in a graph database and get back a natural language answer.
+---
+
+## Security note
+
+Building Q&A systems of SQL databases requires executing model-generated SQL queries. There are inherent risks in doing this. Make sure that your database connection permissions are always scoped as narrowly as possible for your chain/agent’s needs. This will mitigate though not eliminate the risks of building a model-driven system. For more on general security best practices, [see here](/docs/security).
+
+## Architecture
+
+At a high-level, the steps of these systems are:
+
+1. Convert question to SQL query: Model converts user input to a SQL query.
+2. Execute SQL query: Execute the query.
+3. Answer the question: Model responds to user input using the query results.
+
+![graph](/images/graph.png "graph")
+
+## Setup
+
+Install dependencies:
+
+<Note title="TIP" type="success">
+  See [this section for general instructions on installing integration
+  packages](/docs/introduction/installation#installation).
+</Note>
+
+<Tabs defaultValue="npm" className="pt-5 pb-1">
+    <TabsList className="">
+    <TabsTrigger value="npm">npm</TabsTrigger>
+    <TabsTrigger value="yarn">yarn</TabsTrigger>
+    <TabsTrigger value="pnpm">pnpm</TabsTrigger>
+    </TabsList>
+
+    <TabsContent value="npm">
+    ```bash
+    npm i langchain @langchain/community @langchain/openai @langchain/core neo4j-driver
+    ```
+    </TabsContent>
+
+    <TabsContent value="yarn">
+    ```bash
+    yarn add langchain @langchain/community @langchain/openai @langchain/core neo4j-driver
+    ```
+    </TabsContent>
+
+    <TabsContent value="pnpm">
+    ```bash
+    pnpm add langchain @langchain/community @langchain/openai @langchain/core neo4j-driver
+    ```
+    </TabsContent>
+
+</Tabs>
+
+Set environment variables
+We’ll use OpenAI in this example:
+
+```bash
+OPENAI_API_KEY=your-api-key
+
+# Optional, use LangSmith for best-in-class observability
+LANGSMITH_API_KEY=your-api-key
+LANGCHAIN_TRACING_V2=true
+
+# Reduce tracing latency if you are not in a serverless environment
+# LANGCHAIN_CALLBACKS_BACKGROUND=true
+```
+
+Next, we need to define Neo4j credentials. Follow [these installation](https://neo4j.com/docs/operations-manual/current/installation/) steps to set up a Neo4j database.
+
+```bash
+NEO4J_URI="bolt://localhost:7687"
+NEO4J_USERNAME="neo4j"
+NEO4J_PASSWORD="password"
+```
+
+The below example will create a connection with a Neo4j database and will populate it with example data about movies and their actors.
+
+```jsx {0} showLineNumbers
+import "neo4j-driver";
+import { Neo4jGraph } from "@langchain/community/graphs/neo4j_graph";
+
+const url = process.env.NEO4J_URI;
+const username = process.env.NEO4J_USER;
+const password = process.env.NEO4J_PASSWORD;
+const graph = await Neo4jGraph.initialize({ url, username, password });
+
+// Import movie information
+const moviesQuery = `LOAD CSV WITH HEADERS FROM 
+'https://raw.githubusercontent.com/tomasonjo/blog-datasets/main/movies/movies_small.csv'
+AS row
+MERGE (m:Movie {id:row.movieId})
+SET m.released = date(row.released),
+    m.title = row.title,
+    m.imdbRating = toFloat(row.imdbRating)
+FOREACH (director in split(row.director, '|') | 
+    MERGE (p:Person {name:trim(director)})
+    MERGE (p)-[:DIRECTED]->(m))
+FOREACH (actor in split(row.actors, '|') | 
+    MERGE (p:Person {name:trim(actor)})
+    MERGE (p)-[:ACTED_IN]->(m))
+FOREACH (genre in split(row.genres, '|') | 
+    MERGE (g:Genre {name:trim(genre)})
+    MERGE (m)-[:IN_GENRE]->(g))`;
+
+await graph.query(moviesQuery);
+````
+
+```bash
+Schema refreshed successfully.
+```
+
+```bash
+[]
+```
+
+## Graph schema
+
+In order for an LLM to be able to generate a Cypher statement, it needs information about the graph schema. When you instantiate a graph object, it retrieves the information about the graph schema. If you later make any changes to the graph, you can run the **refreshSchema** method to refresh the schema information.
+
+```jsx {0} showLineNumbers
+await graph.refreshSchema();
+console.log(graph.getSchema());
+````
+
+```bash
+Node properties are the following:
+Movie {imdbRating: FLOAT, id: STRING, released: DATE, title: STRING}, Person {name: STRING}, Genre {name: STRING}
+Relationship properties are the following:
+
+The relationships are the following:
+(:Movie)-[:IN_GENRE]->(:Genre), (:Person)-[:DIRECTED]->(:Movie), (:Person)-[:ACTED_IN]->(:Movie)
+```
+
+## Chain
+
+Let’s use a simple chain that takes a question, turns it into a Cypher query, executes the query, and uses the result to answer the original question.
+
+![graph_1](/images/graph_1.png "graph_1")
+
+LangChain comes with a built-in chain for this workflow that is designed to work with Neo4j: **GraphCypherQAChain**.
+
+<Note title="Danger" type="danger">
+The **GraphCypherQAChain** used in this guide will execute Cypher statements against the provided database. For production, make sure that the database connection uses credentials that are narrowly-scoped to only include necessary permissions.
+
+Failure to do so may result in data corruption or loss, since the calling code may attempt commands that would result in deletion, mutation of data if appropriately prompted or reading sensitive data if such data is present in the database.
+</Note>
+
+```jsx {0} showLineNumbers
+import { GraphCypherQAChain } from "langchain/chains/graph_qa/cypher";
+import { ChatOpenAI } from "@langchain/openai";
+
+const llm = new ChatOpenAI({ model: "gpt-3.5-turbo", temperature: 0 });
+const chain = GraphCypherQAChain.fromLLM({
+  llm,
+  graph,
+});
+const response = await chain.invoke({
+  query: "What was the cast of the Casino?",
+});
+console.log(response);
+````
+
+```bash
+{ result: "James Woods, Joe Pesci, Robert De Niro, Sharon Stone" }
+```
+
+### Next steps
+
+For more complex query-generation, we may want to create few-shot prompts or add query-checking steps. For advanced techniques like this and more check out:
+
+- Prompting strategies: Advanced prompt engineering techniques.
+- Mapping values: Techniques for mapping values from questions to database.
+- Semantic layer: Techniques for working implementing semantic layers.
+- Constructing graphs: Techniques for constructing knowledge graphs.
