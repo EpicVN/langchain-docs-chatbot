@@ -9,10 +9,6 @@ export const Documents = [
                 href: "/installation",
             },
             {
-                title: "Setup",
-                href: "/setup",
-            },
-            {
                 title: "Changelog",
                 href: "/changelog",
             },
@@ -41,28 +37,42 @@ export const Documents = [
         ],
     },
     {
+        title: "Orchestration",
+        href: "/orchestration",
+        items: [
+            {
+                title: "Build a Chatbot",
+                href: "/chatbot",
+            },
+            {
+                title: "Build a Retrieval Augmented Generation (RAG) App: Part 1",
+                href: "/rag",
+            },
+            {
+                title: "Build a Retrieval Augmented Generation (RAG) App: Part 2",
+                href: "/qa_chat_history",
+            },
+            {
+                title: "Build a Question/Answering system over SQL data",
+                href: "/sql_qa",
+            },
+            {
+                title: "Summarize Text",
+                href: "/summarization",
+            },
+            {
+                title: "Build a Question Answering application over a Graph Database",
+                href: "/graph",
+            },
+        ],
+    },
+    {
         spacer: true,
     },
     {
         title: "How-to guides",
         href: "/how_to",
         heading: "Documents",
-    },
-    {
-        title: "Structure",
-        href: "/structure",
-        items: [
-            {
-                title: "Deeper",
-                href: "/deeper",
-                items: [
-                    {
-                        title: "Even deeper",
-                        href: "/even-deeper",
-                    },
-                ]
-            },
-        ],
     },
     {
         spacer: true,
@@ -109,5 +119,13 @@ export const Documents = [
                 href: "/tabs",
             },
         ],
+    },
+    {
+        spacer: true,
+    },
+    {
+        title: "Security",
+        href: "/security",
+        heading: "Security",
     },
 ];

@@ -33,22 +33,14 @@ async function generateEmbeddings() {
           .split("/contents/docs")[1]
           .split("/index")[0] || "/";
 
-      const pageContentTrimmed = doc.pageContent;
-      // .replace(/^import.*$/gm, "")
-      // // Remove export statements
-      // .replace(/^export.*$/gm, "")
-      // // Remove React component props
-      // .replace(/ className=(["']).*?\1| className{.*?}/g, "")
-      // // Remove other common React props
-      // .replace(/ props={.*?}| {...props}/g, "")
-      // // Remove JSX component tags
-      // .replace(/<([A-Z][A-Za-z]+).*?>.*?<\/\1>/g, "")
-      // // Remove self-closing JSX tags
-      // .replace(/<([A-Z][A-Za-z]+).*?\/>/g, "")
-      // // Remove empty lines
-      // .replace(/^\s*[\r\n]/gm, "")
-      // // Remove multiple consecutive empty lines
-      // .replace(/\n\s*\n/g, "\n");
+      const pageContentTrimmed = doc.pageContent
+        .replace(/-\s*/g, "") // Remove hyphens followed by spaces
+        .replace(/\*\*/g, "") // Remove double asterisks
+        .replace(/__+/g, "") // Remove double underscores
+        .replace(/`+/g, "") // Remove backticks
+        .replace(/#+\s*/g, "") // Remove hash symbols followed by spaces (headers)
+        .replace(/\[.*?\]\(.*?\)/g, "") // Remove markdown links
+        .replace(/!\[.*?\]\(.*?\)/g, ""); // Remove markdown images
 
       return {
         pageContent: pageContentTrimmed,
