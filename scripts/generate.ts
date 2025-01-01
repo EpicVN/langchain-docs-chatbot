@@ -34,13 +34,13 @@ async function generateEmbeddings() {
           .split("/index")[0] || "/";
 
       const pageContentTrimmed = doc.pageContent
-        .replace(/-\s*/g, "") // Remove hyphens followed by spaces
-        .replace(/\*\*/g, "") // Remove double asterisks
-        .replace(/__+/g, "") // Remove double underscores
-        .replace(/`+/g, "") // Remove backticks
-        .replace(/#+\s*/g, "") // Remove hash symbols followed by spaces (headers)
-        .replace(/\[.*?\]\(.*?\)/g, "") // Remove markdown links
-        .replace(/!\[.*?\]\(.*?\)/g, ""); // Remove markdown images
+        // .replace(/-\s*/g, "") // Remove hyphens followed by spaces
+        // .replace(/\*\*/g, "") // Remove double asterisks
+        // .replace(/__+/g, "") // Remove double underscores
+        // .replace(/`+/g, "") // Remove backticks
+        // .replace(/#+\s*/g, "") // Remove hash symbols followed by spaces (headers)
+        // .replace(/\[.*?\]\(.*?\)/g, "") // Remove markdown links
+        // .replace(/!\[.*?\]\(.*?\)/g, ""); // Remove markdown images
 
       return {
         pageContent: pageContentTrimmed,
