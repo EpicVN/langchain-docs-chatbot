@@ -107,7 +107,7 @@ export async function POST(req: Request) {
       llm: streamingModel,
       prompt,
       documentPrompt: PromptTemplate.fromTemplate(
-        "Page URL: http://localhost:3000/docs{url}" +
+        "Page URL: https://langchain-docs-chatbot.vercel.app/docs{url}" +
           "\n\nPage content:\n{page_content}",
       ),
       documentSeparator: "\n---------------------------------\n",
